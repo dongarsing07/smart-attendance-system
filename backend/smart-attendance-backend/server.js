@@ -54,7 +54,7 @@ const startServer = async () => {
 
     app.use(
       cors({
-        origin: "http://localhost:3000",
+        origin: "https://smart-attendance-system-eight-tau.vercel.app",
         credentials: true
       })
     );
@@ -128,7 +128,7 @@ const startServer = async () => {
 
     const io = new Server(server, {
       cors: {
-        origin: "http://localhost:3000",
+        origin: "https://smart-attendance-system-eight-tau.vercel.app",
         methods: ["GET", "POST"],
         credentials: true
       },
