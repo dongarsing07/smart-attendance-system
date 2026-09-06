@@ -1,23 +1,31 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL =
+  process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+console.log('API connecting to:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
 // Helper to transform backend response to frontend format
 const transformAuthResponse = (response) => {
   const { token, user } = response.data;
+
   return {
     data: {
       token,
@@ -31,6 +39,7 @@ export const authService = {
     const response = await api.post('/auth/register', data);
     return transformAuthResponse(response);
   },
+
   login: async (data) => {
     const response = await api.post('/auth/login', data);
     return transformAuthResponse(response);
@@ -38,9 +47,17 @@ export const authService = {
 };
 
 export const sessionService = {
-  createSession: (location) => api.post('/sessions', location),
-  getSessions: () => api.get('/sessions'),
-  getSessionAttendance: (sessionId) => api.get(`/sessions/${sessionId}/attendance`),
+  createSession: (location) =>
+    api.post('/sessions', location),
+
+  getSessions: () =>
+    api.get('/sessions'),
+
+  getSessionAttendance: (sessionId) =>
+    api.get(`/sessions/${sessionId}/attendance`),
+
+  getTeacherAnalytics: () =>
+    api.get('/sessions/analytics'),
 };
 
 export const attendanceService = {
@@ -48,7 +65,7 @@ export const attendanceService = {
     api.post('/attendance/mark', {
       qrToken,
       location,
-      faceDescriptor
+      faceDescriptor,
     }),
 
   getMyAttendance: () =>

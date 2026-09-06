@@ -9,106 +9,85 @@ import { attendanceService } from "../services/api";
 import toast from "react-hot-toast";
 import LiveClock from "../components/LiveClock";
 
-
 const StudentDashboard = ({ user }) => {
-
-  // ==========================================
-  // ATTENDANCE / QR / GPS
-  // ==========================================
-
   const [scanning, setScanning] = useState(false);
-
   const [history, setHistory] = useState([]);
-
   const [location, setLocation] = useState(null);
 
   const [manualToken, setManualToken] = useState("");
 
-
-  // ==========================================
-  // FACE REGISTRATION
-  // ==========================================
-
   const [showFaceRegistration, setShowFaceRegistration] =
     useState(false);
-
-
-  // ==========================================
-  // FACE VERIFICATION
-  // ==========================================
 
   const [showFaceVerification, setShowFaceVerification] =
     useState(false);
 
-  const [pendingQrToken, setPendingQrToken] =
-    useState(null);
+  const [pendingQrToken, setPendingQrToken] = useState(null);
 
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // ==========================================
-  // LOAD DASHBOARD
-  // ==========================================
+  const [search, setSearch] = useState("");
+
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
+  /* =====================================================
+     INITIAL LOAD
+  ===================================================== */
 
   useEffect(() => {
-
     fetchHistory();
     getLocation();
-
   }, []);
 
-
-  // ==========================================
-  // GET GPS LOCATION
-  // ==========================================
+  /* =====================================================
+     GPS LOCATION
+  ===================================================== */
 
   const getLocation = () => {
-
     if (!navigator.geolocation) {
-
       toast.error(
         "Geolocation is not supported by your browser."
       );
-
       return;
     }
 
+    setLocationLoading(true);
 
     navigator.geolocation.getCurrentPosition(
-
       (pos) => {
-
         setLocation({
           lat: pos.coords.latitude,
-          lng: pos.coords.longitude
+          lng: pos.coords.longitude,
         });
 
-        toast.success(
-          "GPS location detected ✅"
-        );
-      },
+        setLocationLoading(false);
 
+        toast.success("GPS location detected");
+      },
       () => {
+        setLocationLoading(false);
 
         toast.error(
           "Enable GPS for attendance"
         );
       },
-
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0
+        maximumAge: 0,
       }
     );
   };
 
-
-  // ==========================================
-  // FETCH ATTENDANCE HISTORY
-  // ==========================================
+  /* =====================================================
+     FETCH ATTENDANCE HISTORY
+  ===================================================== */
 
   const fetchHistory = async () => {
-
     try {
+      setLoadingHistory(true);
 
       const res =
         await attendanceService.getMyAttendance();
@@ -121,40 +100,50 @@ const StudentDashboard = ({ user }) => {
       }
 
       setHistory(historyData);
-
     } catch (err) {
-
       console.error(
         "History error:",
         err
       );
 
       toast.error(
-        "Failed to load history"
+        "Failed to load attendance history"
       );
 
       setHistory([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
+  /* =====================================================
+     CHECK FACE REGISTRATION
+  ===================================================== */
 
-  // ==========================================
-  // QR SCAN
-  // ==========================================
+  const isFaceRegistered =
+    user?.faceDescriptor &&
+    Array.isArray(user.faceDescriptor) &&
+    user.faceDescriptor.length === 128;
 
-  const handleScan = async (qrToken) => {
+  /* =====================================================
+     QR SCAN
+  ===================================================== */
 
+  const handleScan = (qrToken) => {
     setScanning(false);
 
+    if (!qrToken) {
+      toast.error(
+        "Invalid QR code."
+      );
+      return;
+    }
 
-    // ==========================================
-    // CHECK GPS
-    // ==========================================
+    /* ---------------- GPS CHECK ---------------- */
 
     if (!location) {
-
       toast.error(
-        "Location not available. Please enable GPS."
+        "Location unavailable. Please enable GPS."
       );
 
       getLocation();
@@ -162,17 +151,9 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
+    /* ---------------- FACE CHECK ---------------- */
 
-    // ==========================================
-    // CHECK FACE REGISTRATION
-    // ==========================================
-
-    if (
-      !user.faceDescriptor ||
-      !Array.isArray(user.faceDescriptor) ||
-      user.faceDescriptor.length !== 128
-    ) {
-
+    if (!isFaceRegistered) {
       toast.error(
         "Please register your face before marking attendance."
       );
@@ -182,69 +163,21 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
-
-    // ==========================================
-    // SAVE QR TOKEN
-    // ==========================================
+    /* ---------------- SAVE TOKEN ---------------- */
 
     setPendingQrToken(qrToken);
 
-
-    // ==========================================
-    // OPEN FACE VERIFICATION
-    // ==========================================
+    /* ---------------- OPEN FACE VERIFICATION ---------------- */
 
     setShowFaceVerification(true);
-
   };
 
-
-  // ==========================================
-  // FACE VERIFICATION RESULT
-  // ==========================================
+  /* =====================================================
+     FACE VERIFICATION RESULT
+  ===================================================== */
 
   const handleFaceVerified = async (result) => {
-
-  console.log(
-    "🔥 RECEIVED IN STUDENT DASHBOARD"
-  );
-
-  console.log(
-    "Matched:",
-    result?.matched
-  );
-
-  console.log(
-    "Descriptor:",
-    result?.descriptor
-  );
-
-  console.log(
-    "Is Array:",
-    Array.isArray(result?.descriptor)
-  );
-
-  console.log(
-    "Descriptor length:",
-    result?.descriptor?.length
-  );
-
-  // rest of your code...
-
-    console.log(
-      "=============================================="
-    );
-
-
-    // ==========================================
-    // FACE FAILED
-    // ==========================================
-
-    if (
-      !result ||
-      !result.matched
-    ) {
-
+    if (!result || !result.matched) {
       toast.error(
         "Face verification failed. Attendance not marked."
       );
@@ -252,16 +185,10 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
-
-    // ==========================================
-    // CHECK DESCRIPTOR
-    // ==========================================
-
     if (
       !result.descriptor ||
       result.descriptor.length !== 128
     ) {
-
       toast.error(
         "Invalid face descriptor."
       );
@@ -269,13 +196,7 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
-
-    // ==========================================
-    // CHECK QR TOKEN
-    // ==========================================
-
     if (!pendingQrToken) {
-
       toast.error(
         "QR session is missing."
       );
@@ -283,13 +204,7 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
-
-    // ==========================================
-    // CHECK LOCATION
-    // ==========================================
-
     if (!location) {
-
       toast.error(
         "GPS location is unavailable."
       );
@@ -297,221 +212,116 @@ const StudentDashboard = ({ user }) => {
       return;
     }
 
-
     try {
+      setAttendanceLoading(true);
 
       toast.loading(
         "Verifying QR + GPS + Face...",
         {
-          id: "attendance"
+          id: "attendance",
         }
       );
 
-
-      // ==========================================
-      // FINAL ATTENDANCE REQUEST
-      // ==========================================
-
-      console.log(
-        "========== ATTENDANCE REQUEST =========="
-      );
-
-      console.log(
-        "QR token exists:",
-        !!pendingQrToken
-      );
-
-      console.log(
-        "Location:",
-        location
-      );
-
-      console.log(
-        "Face descriptor length:",
-        result.descriptor.length
-      );
-
-      console.log(
-        "========================================"
-      );
-
+      const descriptor =
+        Array.from(result.descriptor);
 
       const res =
         await attendanceService.markAttendance(
           pendingQrToken,
           location,
-          result.descriptor
+          descriptor
         );
-
-
-      // ==========================================
-      // SUCCESS
-      // ==========================================
-
-      console.log(
-        "========== ATTENDANCE SUCCESS =========="
-      );
-
-      console.log(
-        "Backend response:",
-        res.data
-      );
-
-      console.log(
-        "========================================"
-      );
-
 
       toast.success(
         res.data?.message ||
-        "Attendance marked successfully!",
+          "Attendance marked successfully!",
         {
-          id: "attendance"
+          id: "attendance",
         }
       );
-
-
-      // ==========================================
-      // CLOSE FACE MODAL
-      // ==========================================
 
       setShowFaceVerification(false);
 
       setPendingQrToken(null);
 
-
-      // ==========================================
-      // CLEAR MANUAL TOKEN
-      // ==========================================
-
       setManualToken("");
 
-
-      // ==========================================
-      // REFRESH HISTORY
-      // ==========================================
-
-      fetchHistory();
-
-
+      await fetchHistory();
     } catch (err) {
-
-      // ==========================================
-      // DETAILED ERROR DEBUG
-      // ==========================================
-
       console.error(
-        "========== ATTENDANCE ERROR =========="
-      );
-
-      console.error(
-        "Full error:",
+        "Attendance error:",
         err
       );
 
-      console.error(
-        "HTTP status:",
-        err.response?.status
-      );
-
-      console.error(
-        "Backend response:",
-        err.response?.data
-      );
-
-      console.error(
-        "Backend message:",
-        err.response?.data?.message
-      );
-
-      console.error(
-        "Backend reason:",
-        err.response?.data?.reason
-      );
-
-      console.error(
-        "======================================"
-      );
-
-
-      // ==========================================
-      // GET REAL BACKEND ERROR
-      // ==========================================
-
-      const errorMessage =
+      const message =
         err.response?.data?.message ||
         err.response?.data?.reason ||
         err.message ||
         "Attendance failed";
 
-
       toast.error(
-        errorMessage,
+        message,
         {
-          id: "attendance"
+          id: "attendance",
         }
       );
-
+    } finally {
+      setAttendanceLoading(false);
     }
   };
 
-
-  // ==========================================
-  // MOCK QR SCAN
-  // ==========================================
-
-  const mockScan = () => {
-
-    handleScan(
-      "mock-session-id-for-demo"
-    );
-  };
-
-
-  // ==========================================
-  // MANUAL QR TOKEN
-  // ==========================================
+  /* =====================================================
+     MANUAL QR TOKEN
+  ===================================================== */
 
   const handleManualSubmit = () => {
+    const token =
+      manualToken.trim();
 
-    if (!manualToken) {
-
+    if (!token) {
       toast.error(
-        "Please paste QR token"
+        "Please enter the QR token."
       );
 
       return;
     }
 
+    handleScan(token);
+  };
+
+  /* =====================================================
+     DEMO MOCK SCAN
+  ===================================================== */
+
+  const mockScan = () => {
     handleScan(
-      manualToken
+      "mock-session-id-for-demo"
     );
   };
 
-
-  // ==========================================
-  // STATS
-  // ==========================================
+  /* =====================================================
+     STATISTICS
+  ===================================================== */
 
   const presentCount =
     Array.isArray(history)
       ? history.filter(
-          h => h.status === "Present"
+          (item) =>
+            item.status === "Present"
         ).length
       : 0;
-
 
   const rejectedCount =
     Array.isArray(history)
       ? history.filter(
-          h => h.status === "Rejected"
+          (item) =>
+            item.status === "Rejected"
         ).length
       : 0;
 
-
   const totalAttempts =
-    presentCount + rejectedCount;
-
+    presentCount +
+    rejectedCount;
 
   const attendanceRate =
     totalAttempts === 0
@@ -522,349 +332,590 @@ const StudentDashboard = ({ user }) => {
           100
         ).toFixed(1);
 
+  /* =====================================================
+     FILTER HISTORY
+  ===================================================== */
 
-  // ==========================================
-  // UI
-  // ==========================================
+  const filteredHistory =
+    history.filter((record) => {
+      if (!search.trim()) {
+        return true;
+      }
+
+      const value =
+        search.toLowerCase();
+
+      const session =
+        record.sessionId?.sessionId ||
+        record.sessionId ||
+        "";
+
+      const status =
+        record.status || "";
+
+      const reason =
+        record.rejectionReason || "";
+
+      return (
+        session
+          .toString()
+          .toLowerCase()
+          .includes(value) ||
+        status
+          .toLowerCase()
+          .includes(value) ||
+        reason
+          .toLowerCase()
+          .includes(value)
+      );
+    });
+
+  /* =====================================================
+     FORMAT DATE
+  ===================================================== */
+
+  const formatDate = (date) => {
+    if (!date) return "N/A";
+
+    return new Date(date)
+      .toLocaleDateString(
+        "en-IN",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }
+      );
+  };
+
+  const formatTime = (date) => {
+    if (!date) return "N/A";
+
+    return new Date(date)
+      .toLocaleTimeString(
+        "en-IN",
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+  };
+
+  /* =====================================================
+     UI
+  ===================================================== */
 
   return (
+    <div className="min-h-screen bg-[#F7F9FD] text-[#18345F]">
 
-    <div className="container mx-auto px-4 py-8 text-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
-      {/* ====================================== */}
-      {/* HEADER */}
-      {/* ====================================== */}
+        <div className="hero-gradient p-6 md:p-8 mb-6 animate-fade-in-up">
 
-      <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
 
-        <div>
+            <div>
 
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+              <div className="flex items-center gap-4">
 
-            Student Dashboard
+                <div className="w-14 h-14 rounded-2xl bg-white/80 flex items-center justify-center text-3xl shadow-sm">
+                  🎓
+                </div>
 
-          </h1>
+                <div>
 
+                  <p className="text-xs uppercase tracking-widest font-semibold text-[#63728A]">
+                    Student Portal
+                  </p>
 
-          <p className="text-gray-300 mt-1">
+                  <h1 className="text-2xl md:text-3xl font-bold text-[#18345F] mt-1">
+                    Welcome back,{" "}
+                    <span className="text-[#2F80C9]">
+                      {user?.name || "Student"}
+                    </span>
+                  </h1>
 
-            Welcome back, {user.name} ✨
+                  <p className="text-sm text-[#63728A] mt-1">
+                    Manage your attendance and verification securely.
+                  </p>
 
-          </p>
+                </div>
 
-        </div>
+              </div>
 
+            </div>
 
-        <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
 
-          <LiveClock />
-
-
-          <button
-
-            onClick={() =>
-              setShowFaceRegistration(true)
-            }
-
-            className="btn-primary text-sm px-4 py-2"
-
-          >
-
-            🧑‍💻 Register Face
-
-          </button>
-
-        </div>
-
-      </div>
-
-
-      {/* ====================================== */}
-      {/* FACE STATUS */}
-      {/* ====================================== */}
-
-      <div className="glass-card p-4 mb-6">
-
-        <div className="flex items-center justify-between">
-
-          <div>
-
-            <h3 className="font-semibold">
-              Face Recognition
-            </h3>
-
-            <p className="text-sm text-gray-400">
-              Biometric attendance verification
-            </p>
-
-          </div>
-
-
-          {user.faceDescriptor &&
-          Array.isArray(user.faceDescriptor) &&
-          user.faceDescriptor.length === 128 ? (
-
-            <span className="text-green-400 font-semibold">
-              ✅ Registered
-            </span>
-
-          ) : (
-
-            <span className="text-yellow-400 font-semibold">
-              ⚠️ Not Registered
-            </span>
-
-          )}
-
-        </div>
-
-      </div>
-
-
-      {/* ====================================== */}
-      {/* STUDENT INFO */}
-      {/* ====================================== */}
-
-      <div className="glass-card p-4 mb-6">
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          <div>
-
-            <span className="text-gray-400 text-sm">
-              📚 PRN
-            </span>
-
-            <p className="text-xl font-mono text-blue-300 mt-1">
-              {user.prn || "Not assigned"}
-            </p>
-
-          </div>
-
-
-          <div>
-
-            <span className="text-gray-400 text-sm">
-              🏛️ Branch
-            </span>
-
-            <p className="text-xl text-cyan-300 mt-1">
-              {user.branch || "Not assigned"}
-            </p>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* ====================================== */}
-      {/* STATS */}
-      {/* ====================================== */}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-
-
-        <div className="glass-card p-4 text-center">
-
-          <div className="text-3xl font-bold text-green-400">
-            {presentCount}
-          </div>
-
-          <div className="text-sm text-gray-300">
-            ✅ Present
-          </div>
-
-        </div>
-
-
-        <div className="glass-card p-4 text-center">
-
-          <div className="text-3xl font-bold text-red-400">
-            {rejectedCount}
-          </div>
-
-          <div className="text-sm text-gray-300">
-            ❌ Rejected
-          </div>
-
-        </div>
-
-
-        <div className="glass-card p-4 text-center">
-
-          <div className="text-3xl font-bold text-blue-400">
-            {attendanceRate}%
-          </div>
-
-          <div className="text-sm text-gray-300">
-            📊 Attendance Rate
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* ====================================== */}
-      {/* QR + GPS */}
-      {/* ====================================== */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-
-
-        {/* QR SCANNER */}
-
-        <div className="glass-card p-6 border-2 border-blue-500/50 shadow-lg shadow-blue-500/20">
-
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-
-            📷 Scan QR Code
-
-            <span className="text-xs bg-blue-600 px-2 py-1 rounded-full">
-              Active
-            </span>
-
-          </h2>
-
-
-          {!scanning ? (
-
-            <div className="space-y-3">
-
+              <LiveClock />
 
               <button
-
                 onClick={() =>
-                  setScanning(true)
+                  setShowFaceRegistration(true)
                 }
-
-                className="btn-primary w-full py-3 text-lg"
-
-                disabled={!location}
-
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#2F80C9] border border-[#DCE5F1] font-semibold text-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
               >
-
-                Start Camera Scanner
-
-              </button>
-
-
-              <button
-
-                onClick={mockScan}
-
-                className="btn-secondary w-full py-3 text-lg"
-
-              >
-
-                🎬 Mock Scan (Demo)
-
-              </button>
-
-
-              <input
-
-                type="text"
-
-                placeholder="Paste QR Token here"
-
-                value={manualToken}
-
-                onChange={(e) =>
-                  setManualToken(
-                    e.target.value
-                  )
-                }
-
-                className="w-full p-3 rounded-lg bg-black/30 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-
-              />
-
-
-              <button
-
-                onClick={handleManualSubmit}
-
-                className="btn-primary w-full py-3"
-
-              >
-
-                Submit Token
-
+                👤{" "}
+                {isFaceRegistered
+                  ? "Update Face"
+                  : "Register Face"}
               </button>
 
             </div>
 
-          ) : (
-
-            <>
-
-              <QRScanner
-                onScanSuccess={handleScan}
-              />
-
-
-              <button
-
-                onClick={() =>
-                  setScanning(false)
-                }
-
-                className="btn-secondary mt-4 w-full"
-
-              >
-
-                Stop Scanner
-
-              </button>
-
-            </>
-
-          )}
+          </div>
 
         </div>
 
 
-        {/* GPS */}
+        {/* =================================================
+            STUDENT PROFILE
+        ================================================= */}
 
-        <div className="glass-card p-6">
+        <div
+          id="profile"
+          className="portal-card p-5 mb-6"
+        >
 
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
 
-            📍 GPS Location
+            <div className="flex items-center gap-4">
 
-          </h2>
+              <div className="w-12 h-12 rounded-xl bg-[#EAF3FF] flex items-center justify-center text-xl">
+                👨‍🎓
+              </div>
+
+              <div>
+
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#8A96A8]">
+                  Student Information
+                </p>
+
+                <h2 className="font-bold text-[#18345F] mt-1">
+                  {user?.name || "Student"}
+                </h2>
+
+              </div>
+
+            </div>
 
 
-          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+
+              <div>
+
+                <p className="text-xs text-[#8A96A8]">
+                  PRN
+                </p>
+
+                <p className="font-mono font-semibold text-sm text-[#18345F] mt-1">
+                  {user?.prn || "Not assigned"}
+                </p>
+
+              </div>
+
+              <div>
+
+                <p className="text-xs text-[#8A96A8]">
+                  Branch
+                </p>
+
+                <p className="font-semibold text-sm text-[#18345F] mt-1 max-w-[220px]">
+                  {user?.branch || "Not assigned"}
+                </p>
+
+              </div>
+
+              <div className="col-span-2 md:col-span-1">
+
+                <p className="text-xs text-[#8A96A8]">
+                  Face Verification
+                </p>
+
+                {isFaceRegistered ? (
+
+                  <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-full bg-[#E7FAF3] text-[#20B486] text-xs font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#20B486]" />
+                    Registered
+                  </span>
+
+                ) : (
+
+                  <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-full bg-[#FFF6E5] text-[#D89000] text-xs font-semibold">
+                    ⚠ Not Registered
+                  </span>
+
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
 
 
-            <div className="bg-black/30 rounded-lg p-3 font-mono text-sm">
+        {/* =================================================
+            STATISTICS
+        ================================================= */}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+
+          {/* PRESENT */}
+
+          <div className="stat-card stat-card-green">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-[#63728A]">
+                  Present
+                </p>
+
+                <p className="text-3xl font-bold text-[#18345F] mt-1">
+                  {presentCount}
+                </p>
+
+                <p className="text-xs text-[#20B486] mt-1">
+                  Successful attendance
+                </p>
+
+              </div>
+
+              <div className="stat-icon">
+                ✓
+              </div>
+
+            </div>
+
+          </div>
+
+
+          {/* REJECTED */}
+
+          <div className="stat-card stat-card-red">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-[#63728A]">
+                  Rejected
+                </p>
+
+                <p className="text-3xl font-bold text-[#18345F] mt-1">
+                  {rejectedCount}
+                </p>
+
+                <p className="text-xs text-[#EF5B72] mt-1">
+                  Failed attempts
+                </p>
+
+              </div>
+
+              <div className="stat-icon">
+                !
+              </div>
+
+            </div>
+
+          </div>
+
+
+          {/* RATE */}
+
+          <div className="stat-card stat-card-blue">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-[#63728A]">
+                  Attendance Rate
+                </p>
+
+                <p className="text-3xl font-bold text-[#18345F] mt-1">
+                  {attendanceRate}%
+                </p>
+
+                <p className="text-xs text-[#2F80C9] mt-1">
+                  Based on recorded attempts
+                </p>
+
+              </div>
+
+              <div className="stat-icon">
+                %
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* =================================================
+            ATTENDANCE PROCESS
+        ================================================= */}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+          {/* QR CARD */}
+
+          <div className="lg:col-span-2 portal-card p-6">
+
+            <div className="flex items-start justify-between gap-4 mb-5">
+
+              <div>
+
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                  Mark Attendance
+                </p>
+
+                <h2 className="text-xl font-bold text-[#18345F] mt-1">
+                  Scan Classroom QR Code
+                </h2>
+
+                <p className="text-sm text-[#8A96A8] mt-1">
+                  Attendance is verified using QR, GPS and face recognition.
+                </p>
+
+              </div>
+
+              <div className="w-11 h-11 rounded-xl bg-[#EAF3FF] flex items-center justify-center text-xl">
+                📱
+              </div>
+
+            </div>
+
+
+            {/* PROCESS STEPS */}
+
+            <div className="grid grid-cols-3 gap-2 mb-6">
+
+              <div className="rounded-xl bg-[#F7F9FD] border border-[#DCE5F1] p-3 text-center">
+
+                <div className="text-xl">
+                  📱
+                </div>
+
+                <p className="text-xs font-semibold text-[#18345F] mt-1">
+                  QR Scan
+                </p>
+
+              </div>
+
+              <div className="rounded-xl bg-[#F7F9FD] border border-[#DCE5F1] p-3 text-center">
+
+                <div className="text-xl">
+                  📍
+                </div>
+
+                <p className="text-xs font-semibold text-[#18345F] mt-1">
+                  GPS Check
+                </p>
+
+              </div>
+
+              <div className="rounded-xl bg-[#F7F9FD] border border-[#DCE5F1] p-3 text-center">
+
+                <div className="text-xl">
+                  👤
+                </div>
+
+                <p className="text-xs font-semibold text-[#18345F] mt-1">
+                  Face Check
+                </p>
+
+              </div>
+
+            </div>
+
+
+            {!scanning ? (
+
+              <div className="space-y-3">
+
+                <button
+                  onClick={() =>
+                    setScanning(true)
+                  }
+                  disabled={!location || locationLoading}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#2F80C9] text-white font-semibold hover:bg-[#2563C7] hover:-translate-y-0.5 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  📷{" "}
+                  {locationLoading
+                    ? "Getting GPS..."
+                    : "Start Camera Scanner"}
+                </button>
+
+
+                <div className="relative">
+
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-[#DCE5F1]" />
+                  </div>
+
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 text-xs text-[#8A96A8]">
+                      OR ENTER TOKEN
+                    </span>
+                  </div>
+
+                </div>
+
+
+                <div className="flex flex-col sm:flex-row gap-2">
+
+                  <input
+                    type="text"
+                    value={manualToken}
+                    onChange={(e) =>
+                      setManualToken(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Paste QR token here"
+                    className="flex-1 px-4 py-3 rounded-xl border border-[#DCE5F1] bg-white text-[#18345F] placeholder:text-[#A5AFBE] focus:outline-none focus:ring-2 focus:ring-[#2F80C9]/20 focus:border-[#2F80C9]"
+                  />
+
+                  <button
+                    onClick={handleManualSubmit}
+                    className="px-5 py-3 rounded-xl border border-[#DCE5F1] bg-white text-[#2F80C9] font-semibold hover:bg-[#F7F9FD] transition"
+                  >
+                    Verify
+                  </button>
+
+                </div>
+
+
+                {/* DEMO BUTTON */}
+
+                <button
+                  onClick={mockScan}
+                  className="w-full text-xs text-[#8A96A8] hover:text-[#2F80C9] transition py-2"
+                >
+                  Demo / Test Scan
+                </button>
+
+              </div>
+
+            ) : (
+
+              <div>
+
+                <div className="rounded-2xl overflow-hidden border border-[#DCE5F1] bg-[#0F172A]">
+
+                  <QRScanner
+                    onScanSuccess={handleScan}
+                  />
+
+                </div>
+
+                <button
+                  onClick={() =>
+                    setScanning(false)
+                  }
+                  className="w-full mt-4 px-5 py-3 rounded-xl border border-[#DCE5F1] bg-white text-[#63728A] font-semibold hover:bg-[#F7F9FD] transition"
+                >
+                  Stop Scanner
+                </button>
+
+              </div>
+
+            )}
+
+          </div>
+
+
+          {/* GPS CARD */}
+
+          <div className="portal-card p-6">
+
+            <div className="flex items-center justify-between mb-5">
+
+              <div>
+
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                  Security Check
+                </p>
+
+                <h2 className="text-lg font-bold text-[#18345F] mt-1">
+                  GPS Location
+                </h2>
+
+              </div>
+
+              <div className="w-10 h-10 rounded-xl bg-[#E7FAF3] flex items-center justify-center">
+                📍
+              </div>
+
+            </div>
+
+
+            <div className="rounded-xl bg-[#F7F9FD] border border-[#DCE5F1] p-4">
+
+              <div className="flex items-center gap-2 mb-3">
+
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    location
+                      ? "bg-[#20B486]"
+                      : "bg-[#EF5B72]"
+                  }`}
+                />
+
+                <span className="text-sm font-semibold text-[#18345F]">
+                  {location
+                    ? "Location Available"
+                    : "Location Required"}
+                </span>
+
+              </div>
+
 
               {location ? (
 
-                <>
+                <div className="space-y-2 font-mono text-xs text-[#63728A]">
 
-                  <div>
-                    Latitude:{" "}
-                    {location.lat.toFixed(6)}
+                  <div className="flex justify-between gap-3">
+
+                    <span>
+                      Latitude
+                    </span>
+
+                    <span className="font-semibold text-[#18345F]">
+                      {location.lat.toFixed(6)}
+                    </span>
+
                   </div>
 
-                  <div>
-                    Longitude:{" "}
-                    {location.lng.toFixed(6)}
+                  <div className="flex justify-between gap-3">
+
+                    <span>
+                      Longitude
+                    </span>
+
+                    <span className="font-semibold text-[#18345F]">
+                      {location.lng.toFixed(6)}
+                    </span>
+
                   </div>
 
-                </>
+                </div>
 
               ) : (
 
-                <div className="text-yellow-400">
-                  Waiting for GPS signal...
-                </div>
+                <p className="text-sm text-[#EF5B72]">
+                  GPS location has not been detected.
+                </p>
 
               )}
 
@@ -872,265 +923,666 @@ const StudentDashboard = ({ user }) => {
 
 
             <button
-
               onClick={getLocation}
-
-              className="text-blue-400 text-sm hover:text-blue-300 transition w-full text-center"
-
+              disabled={locationLoading}
+              className="w-full mt-4 px-4 py-2.5 rounded-xl border border-[#DCE5F1] bg-white text-[#2F80C9] text-sm font-semibold hover:bg-[#F7F9FD] transition disabled:opacity-50"
             >
-
-              🔄 Refresh Location
-
+              {locationLoading
+                ? "Detecting..."
+                : "↻ Refresh Location"}
             </button>
 
 
-            <p className="text-xs text-gray-400 mt-2">
+            <div className="mt-5 p-4 rounded-xl bg-[#FFF9ED] border border-[#F6E4B7]">
 
-              Your location is used to verify
-              you are within 50m of the class.
+              <p className="text-xs text-[#8A6A1D] leading-relaxed">
+                Your location is used to verify that you are within the allowed classroom attendance area.
+              </p>
 
-            </p>
+            </div>
 
           </div>
 
         </div>
 
-      </div>
+
+        {/* =================================================
+            ATTENDANCE HISTORY
+        ================================================= */}
+
+        <div
+          id="attendance"
+          className="portal-card p-5 md:p-6"
+        >
+
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+
+            <div>
+
+              <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                Records
+              </p>
+
+              <h2 className="text-xl font-bold text-[#18345F] mt-1">
+                Attendance History
+              </h2>
+
+              <p className="text-sm text-[#8A96A8] mt-1">
+                Review your attendance attempts and verification results.
+              </p>
+
+            </div>
 
 
-      {/* ====================================== */}
-      {/* ATTENDANCE HISTORY */}
-      {/* ====================================== */}
+            <div className="flex flex-col sm:flex-row gap-2">
 
-      <div className="glass-card p-6">
+              <div className="relative">
 
-        <div className="flex justify-between items-center mb-4">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A96A8]">
+                  🔎
+                </span>
 
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) =>
+                    setSearch(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Search records..."
+                  className="w-full sm:w-64 pl-9 pr-4 py-2.5 rounded-xl border border-[#DCE5F1] bg-white text-sm text-[#18345F] placeholder:text-[#A5AFBE] focus:outline-none focus:ring-2 focus:ring-[#2F80C9]/20 focus:border-[#2F80C9]"
+                />
 
-            📋 Attendance History
+              </div>
 
-            <span className="text-sm bg-gray-700 px-2 py-1 rounded-full">
+              <button
+                onClick={fetchHistory}
+                className="px-4 py-2.5 rounded-xl border border-[#DCE5F1] bg-white text-[#63728A] text-sm font-semibold hover:bg-[#F7F9FD] transition"
+              >
+                ↻ Refresh
+              </button>
 
-              {history.length} records
+            </div>
 
+          </div>
+
+
+          {/* RECORD COUNT */}
+
+          <div className="flex items-center gap-2 mb-4">
+
+            <span className="px-3 py-1.5 rounded-full bg-[#EEF4FB] text-[#2F80C9] text-xs font-semibold">
+              {filteredHistory.length} records
             </span>
 
-          </h2>
-
-        </div>
-
-
-        {history.length === 0 ? (
-
-          <div className="text-center py-8 text-gray-400">
-
-            No attendance records yet.
+            {search && (
+              <span className="text-xs text-[#8A96A8]">
+                Filtered from {history.length}
+              </span>
+            )}
 
           </div>
 
-        ) : (
 
-          <div className="overflow-x-auto">
+          {/* LOADING */}
 
-            <table className="w-full">
+          {loadingHistory ? (
 
-              <thead>
+            <div className="py-14 text-center">
 
-                <tr className="border-b border-white/10">
+              <div className="w-8 h-8 border-2 border-[#DCE5F1] border-t-[#2F80C9] rounded-full animate-spin mx-auto" />
 
-                  <th className="text-left py-3 px-2">
-                    Date & Time
-                  </th>
+              <p className="text-sm text-[#8A96A8] mt-4">
+                Loading attendance records...
+              </p>
 
-                  <th className="text-left py-3 px-2">
-                    Session
-                  </th>
+            </div>
 
-                  <th className="text-left py-3 px-2">
-                    Status
-                  </th>
+          ) : filteredHistory.length === 0 ? (
 
-                  <th className="text-left py-3 px-2">
-                    Distance / Reason
-                  </th>
+            <div className="py-14 text-center border border-dashed border-[#DCE5F1] rounded-2xl">
 
-                </tr>
+              <div className="w-14 h-14 rounded-2xl bg-[#F7F9FD] flex items-center justify-center mx-auto text-2xl">
+                📋
+              </div>
 
-              </thead>
+              <h3 className="font-semibold text-[#18345F] mt-4">
+                {search
+                  ? "No matching records"
+                  : "No attendance records yet"}
+              </h3>
 
+              <p className="text-sm text-[#8A96A8] mt-1">
+                {search
+                  ? "Try a different search term."
+                  : "Your attendance activity will appear here."}
+              </p>
 
-              <tbody>
+            </div>
 
-                {history.map(
-                  (record) => (
+          ) : (
 
-                    <tr
-                      key={record._id}
-                      className="border-b border-white/5"
-                    >
+            <div className="overflow-x-auto border border-[#DCE5F1] rounded-2xl">
 
-                      <td className="py-3 px-2">
+              <table className="portal-table">
 
-                        <div className="font-medium">
+                <thead>
 
-                          {new Date(
-                            record.createdAt ||
-                            record.timestamp
-                          ).toLocaleDateString()}
+                  <tr>
 
-                        </div>
+                    <th>
+                      Date & Time
+                    </th>
 
-                        <div className="text-xs text-gray-400">
+                    <th>
+                      Session
+                    </th>
 
-                          {new Date(
-                            record.createdAt ||
-                            record.timestamp
-                          ).toLocaleTimeString()}
+                    <th>
+                      Status
+                    </th>
 
-                        </div>
+                    <th>
+                      Distance / Reason
+                    </th>
 
-                      </td>
+                    <th>
+                      Action
+                    </th>
 
+                  </tr>
 
-                      <td className="py-3 px-2">
-
-                        <span className="text-xs font-mono">
-
-                          {record.sessionId?.sessionId?.substring(
-                            0,
-                            8
-                          ) ||
-                            record.sessionId ||
-                            "N/A"}
-
-                          ...
-
-                        </span>
-
-                      </td>
+                </thead>
 
 
-                      <td className="py-3 px-2">
+                <tbody>
 
-                        <span
-                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                            record.status ===
-                            "Present"
-                              ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                              : "bg-red-500/20 text-red-400 border border-red-500/30"
-                          }`}
+                  {filteredHistory.map(
+                    (record) => {
+
+                      const date =
+                        record.createdAt ||
+                        record.timestamp;
+
+                      const session =
+                        record.sessionId?.sessionId ||
+                        record.sessionId ||
+                        "N/A";
+
+                      return (
+
+                        <tr
+                          key={
+                            record._id ||
+                            `${session}-${date}`
+                          }
+                          className="hover:bg-[#F8FAFD] transition-colors"
                         >
 
-                          {record.status ===
-                          "Present"
-                            ? "✅"
-                            : "❌"}
+                          {/* DATE */}
 
-                          {" "}
+                          <td>
 
-                          {record.status}
+                            <div className="font-semibold text-[#18345F]">
+                              {formatDate(date)}
+                            </div>
 
-                        </span>
+                            <div className="text-xs text-[#8A96A8] mt-0.5">
+                              {formatTime(date)}
+                            </div>
 
-                      </td>
+                          </td>
 
 
-                      <td className="py-3 px-2 text-sm">
+                          {/* SESSION */}
 
-                        {record.rejectionReason ? (
+                          <td>
 
-                          <span className="text-red-300">
-                            {record.rejectionReason}
-                          </span>
+                            <span className="inline-flex px-2.5 py-1 rounded-lg bg-[#F7F9FD] border border-[#DCE5F1] font-mono text-xs text-[#63728A]">
+                              {session
+                                .toString()
+                                .substring(0, 12)}
+                              {session.length > 12
+                                ? "..."
+                                : ""}
+                            </span>
 
-                        ) : (
+                          </td>
 
-                          <span className="text-green-300">
 
-                            📍{" "}
+                          {/* STATUS */}
 
-                            {record.distance ||
-                              "~"}m from class
+                          <td>
 
-                          </span>
+                            {record.status ===
+                            "Present" ? (
 
-                        )}
+                              <span className="badge-success">
+                                ✓ Present
+                              </span>
 
-                      </td>
+                            ) : (
 
-                    </tr>
+                              <span className="badge-danger">
+                                × Rejected
+                              </span>
 
-                  )
-                )}
+                            )}
 
-              </tbody>
+                          </td>
 
-            </table>
 
-          </div>
+                          {/* REASON */}
 
-        )}
+                          <td>
+
+                            {record.rejectionReason ? (
+
+                              <span className="text-sm text-[#EF5B72]">
+                                {record.rejectionReason}
+                              </span>
+
+                            ) : (
+
+                              <span className="text-sm text-[#20B486]">
+                                ✓ Location verified
+                              </span>
+
+                            )}
+
+                          </td>
+
+
+                          {/* ACTION */}
+
+                          <td>
+
+                            <button
+                              onClick={() =>
+                                setSelectedRecord(
+                                  record
+                                )
+                              }
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#2F80C9] hover:bg-[#EAF3FF] transition"
+                            >
+                              View
+                            </button>
+
+                          </td>
+
+                        </tr>
+
+                      );
+
+                    }
+                  )}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </div>
 
       </div>
 
 
-      {/* ====================================== */}
-      {/* FACE REGISTRATION MODAL */}
-      {/* ====================================== */}
+      {/* =================================================
+          FACE REGISTRATION MODAL
+      ================================================= */}
 
       {showFaceRegistration && (
 
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="modal-overlay">
 
-          <FaceRegistration
+          <div className="modal-content max-w-lg">
 
-            user={user}
+            <div className="modal-header">
 
-            onComplete={() => {
+              <div>
 
-              setShowFaceRegistration(false);
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                  Biometric Security
+                </p>
 
-              toast.success(
-                "Face registration completed!"
-              );
+                <h3 className="text-lg font-bold text-[#18345F]">
+                  Face Registration
+                </h3>
 
-            }}
+                <p className="text-sm text-[#8A96A8] mt-1">
+                  Register your face for secure attendance verification.
+                </p>
 
-          />
+              </div>
+
+              <button
+                onClick={() =>
+                  setShowFaceRegistration(false)
+                }
+                className="w-9 h-9 rounded-lg hover:bg-[#F7F9FD] flex items-center justify-center text-[#8A96A8]"
+              >
+                ✕
+              </button>
+
+            </div>
+
+
+            <div className="modal-body">
+
+              <FaceRegistration
+                user={user}
+                onComplete={() => {
+
+                  setShowFaceRegistration(
+                    false
+                  );
+
+                  toast.success(
+                    "Face registration completed!"
+                  );
+
+                }}
+              />
+
+            </div>
+
+          </div>
 
         </div>
 
       )}
 
 
-      {/* ====================================== */}
-      {/* FACE VERIFICATION MODAL */}
-      {/* ====================================== */}
+      {/* =================================================
+          FACE VERIFICATION MODAL
+      ================================================= */}
 
       {showFaceVerification && (
 
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="modal-overlay">
 
-          <FaceVerification
+          <div className="modal-content max-w-lg">
 
-            storedDescriptor={
-              user.faceDescriptor
-            }
+            <div className="modal-header">
 
-            onVerified={
-              handleFaceVerified
-            }
+              <div>
 
-            onCancel={() => {
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                  Security Verification
+                </p>
 
-              setShowFaceVerification(false);
+                <h3 className="text-lg font-bold text-[#18345F]">
+                  Verify Your Identity
+                </h3>
 
-              setPendingQrToken(null);
+                <p className="text-sm text-[#8A96A8] mt-1">
+                  Look at the camera to verify your face.
+                </p>
 
-            }}
+              </div>
 
-          />
+              <button
+                onClick={() => {
+
+                  setShowFaceVerification(
+                    false
+                  );
+
+                  setPendingQrToken(
+                    null
+                  );
+
+                }}
+                disabled={attendanceLoading}
+                className="w-9 h-9 rounded-lg hover:bg-[#F7F9FD] flex items-center justify-center text-[#8A96A8] disabled:opacity-50"
+              >
+                ✕
+              </button>
+
+            </div>
+
+
+            <div className="modal-body">
+
+              <FaceVerification
+                storedDescriptor={
+                  user.faceDescriptor
+                }
+
+                onVerified={
+                  handleFaceVerified
+                }
+
+                onCancel={() => {
+
+                  setShowFaceVerification(
+                    false
+                  );
+
+                  setPendingQrToken(
+                    null
+                  );
+
+                }}
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+
+      {/* =================================================
+          ATTENDANCE DETAILS MODAL
+      ================================================= */}
+
+      {selectedRecord && (
+
+        <div className="modal-overlay">
+
+          <div className="modal-content max-w-md">
+
+            <div className="modal-header">
+
+              <div>
+
+                <p className="text-xs uppercase tracking-wider font-semibold text-[#63728A]">
+                  Attendance Record
+                </p>
+
+                <h3 className="text-lg font-bold text-[#18345F]">
+                  Attendance Details
+                </h3>
+
+              </div>
+
+              <button
+                onClick={() =>
+                  setSelectedRecord(
+                    null
+                  )
+                }
+                className="w-9 h-9 rounded-lg hover:bg-[#F7F9FD] flex items-center justify-center text-[#8A96A8]"
+              >
+                ✕
+              </button>
+
+            </div>
+
+
+            <div className="modal-body">
+
+              <div className="space-y-4">
+
+                {/* STATUS */}
+
+                <div className="rounded-xl bg-[#F7F9FD] p-4">
+
+                  <p className="text-xs text-[#8A96A8]">
+                    Status
+                  </p>
+
+                  <div className="mt-2">
+
+                    {selectedRecord.status ===
+                    "Present" ? (
+
+                      <span className="badge-success">
+                        ✓ Present
+                      </span>
+
+                    ) : (
+
+                      <span className="badge-danger">
+                        × Rejected
+                      </span>
+
+                    )}
+
+                  </div>
+
+                </div>
+
+
+                {/* DATE */}
+
+                <div className="grid grid-cols-2 gap-3">
+
+                  <div className="rounded-xl bg-[#F7F9FD] p-4">
+
+                    <p className="text-xs text-[#8A96A8]">
+                      Date
+                    </p>
+
+                    <p className="text-sm font-semibold text-[#18345F] mt-1">
+                      {formatDate(
+                        selectedRecord.createdAt ||
+                        selectedRecord.timestamp
+                      )}
+                    </p>
+
+                  </div>
+
+
+                  <div className="rounded-xl bg-[#F7F9FD] p-4">
+
+                    <p className="text-xs text-[#8A96A8]">
+                      Time
+                    </p>
+
+                    <p className="text-sm font-semibold text-[#18345F] mt-1">
+                      {formatTime(
+                        selectedRecord.createdAt ||
+                        selectedRecord.timestamp
+                      )}
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                {/* SESSION */}
+
+                <div className="rounded-xl bg-[#F7F9FD] p-4">
+
+                  <p className="text-xs text-[#8A96A8]">
+                    Session
+                  </p>
+
+                  <p className="text-xs font-mono text-[#18345F] mt-2 break-all">
+                    {selectedRecord.sessionId?.sessionId ||
+                      selectedRecord.sessionId ||
+                      "N/A"}
+                  </p>
+
+                </div>
+
+
+                {/* LOCATION */}
+
+                <div className="rounded-xl bg-[#F7F9FD] p-4">
+
+                  <p className="text-xs text-[#8A96A8]">
+                    Location
+                  </p>
+
+                  {selectedRecord.locationLat != null &&
+                  selectedRecord.locationLng != null ? (
+
+                    <div className="text-xs font-mono text-[#63728A] mt-2 space-y-1">
+
+                      <p>
+                        Latitude:{" "}
+                        {Number(
+                          selectedRecord.locationLat
+                        ).toFixed(6)}
+                      </p>
+
+                      <p>
+                        Longitude:{" "}
+                        {Number(
+                          selectedRecord.locationLng
+                        ).toFixed(6)}
+                      </p>
+
+                    </div>
+
+                  ) : (
+
+                    <p className="text-sm text-[#8A96A8] mt-1">
+                      Location information unavailable.
+                    </p>
+
+                  )}
+
+                </div>
+
+
+                {/* REASON */}
+
+                {selectedRecord.rejectionReason && (
+
+                  <div className="rounded-xl bg-[#FFF0F3] border border-[#F8D5DC] p-4">
+
+                    <p className="text-xs text-[#EF5B72] font-semibold">
+                      Rejection Reason
+                    </p>
+
+                    <p className="text-sm text-[#B43E52] mt-1">
+                      {
+                        selectedRecord.rejectionReason
+                      }
+                    </p>
+
+                  </div>
+
+                )}
+
+              </div>
+
+
+              <button
+                onClick={() =>
+                  setSelectedRecord(
+                    null
+                  )
+                }
+                className="w-full mt-5 btn-secondary"
+              >
+                Close
+              </button>
+
+            </div>
+
+          </div>
 
         </div>
 
@@ -1139,6 +1591,5 @@ const StudentDashboard = ({ user }) => {
     </div>
   );
 };
-
 
 export default StudentDashboard;
