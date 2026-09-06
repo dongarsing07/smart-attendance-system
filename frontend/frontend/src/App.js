@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import TeacherDashboard from './pages/TeacherDashboard';
 import StudentDashboard from './pages/StudentDashboard';
-import DemoBadge from './components/DemoBadge';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -82,7 +81,7 @@ function App() {
           }}
         />
 
-        <DemoBadge />
+    
 
         <Routes>
 
