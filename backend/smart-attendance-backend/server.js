@@ -52,13 +52,23 @@ const startServer = async () => {
     // CORS
     // ==========================================
 
-    app.use(
-      cors({
-        origin: "https://smart-attendance-system-eight-tau.vercel.app",
-        credentials: true
-      })
-    );
+    const allowedOrigins = [
+  "http://localhost:3000",
+  "https://smart-attendance-system-eight-tau.vercel.app"
+];
 
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true
+  })
+);
     // ==========================================
     // BODY PARSER
     // ==========================================
@@ -127,15 +137,14 @@ const startServer = async () => {
     // ==========================================
 
     const io = new Server(server, {
-      cors: {
-        origin: "https://smart-attendance-system-eight-tau.vercel.app",
-        methods: ["GET", "POST"],
-        credentials: true
-      },
-
-      transports: ["websocket"]
-    });
-
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "https://smart-attendance-system-eight-tau.vercel.app"
+    ],
+    credentials: true
+  }
+});
     // Make Socket.IO available in controllers
     app.set("io", io);
 
